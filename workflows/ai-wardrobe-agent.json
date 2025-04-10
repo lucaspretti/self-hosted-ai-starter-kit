@@ -1,0 +1,385 @@
+{
+  "meta": {
+    "instanceId": "408f9fb9940c3cb18ffdef0e0150fe342d6e655c3a9fac21f0f644e8bedabcd9"
+  },
+  "nodes": [
+    {
+      "id": "6c78b4c7-993b-410d-93e7-e11b3052e53b",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [0, 420],
+      "parameters": {},
+      "typeVersion": 1
+    },
+    {
+      "id": "d5980a74-299f-4ba0-b6e1-57ae71ddf243",
+      "name": "API Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "position": [0, 240],
+      "webhookId": "wardrobe-analyze",
+      "parameters": {
+        "options": {
+          "responseMode": "responseNode"
+        },
+        "path": "wardrobe-analyze",
+        "responseData": "allEntries",
+        "responseContentType": "application/json",
+        "responsePropertyName": "data"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "c2ab6497-6d6d-483b-bd43-494ae95394c0",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [1140, 600],
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"item_name\": { \"type\": \"string\" },\n\t\t\"item_category\": { \"type\": \"string\" },\n\t\t\"item_description\": { \n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"detailed description of the item including its appearance, materials, and condition\"\n\t\t},\n\t\t\"primary_color\": { \"type\": \"string\" },\n\t\t\"secondary_colors\": { \n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": { \"type\": \"string\" } \n\t\t},\n\t\t\"material\": { \"type\": \"string\" },\n\t\t\"condition\": { \n\t\t\t\"type\": \"string\",\n\t\t\t\"enum\": [\"New\", \"Like New\", \"Good\", \"Fair\", \"Poor\"] \n\t\t},\n\t\t\"suggested_location\": { \n\t\t\t\"type\": \"string\",\n\t\t\t\"enum\": [\"House A\", \"House B\", \"House C\", \"Unknown\"] \n\t\t},\n\t\t\"suggested_tags\": { \n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": { \"type\": \"string\" },\n\t\t\t\"description\": \"suggested categorization tags for this item (up to 8)\"\n\t\t},\n\t\t\"estimated_value\": { \n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"estimated current value range (if identifiable)\"\n\t\t},\n\t\t\"detected_brand\": { \"type\": \"string\" },\n\t\t\"detected_text\": { \n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": { \"type\": \"string\" },\n\t\t\t\"description\": \"any text detected in the image(s)\"\n\t\t}\n\t}\n}"
+      },
+      "typeVersion": 1.2
+    },
+    {
+      "id": "b23f5298-17c7-49ac-a8ca-78e006b2d294",
+      "name": "Sample Test Data",
+      "type": "n8n-nodes-base.set",
+      "position": [180, 420],
+      "parameters": {
+        "options": {},
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6baa3e08-8957-454e-8ee9-d5414a0ff990",
+              "name": "data",
+              "type": "object",
+              "value": "={{\n{\n  \"item_id\": \"test_item_001\",\n  \"location\": \"House A\",\n  \"image_urls\": [\n    \"https://raw.githubusercontent.com/lucaspretti/n8n-templates/refs/heads/main/camisa1.jpg\",\n    \"https://raw.githubusercontent.com/lucaspretti/n8n-templates/refs/heads/main/camisa2.jpg\"\n  ]\n}\n}}"
+            }
+          ]
+        }
+      },
+      "typeVersion": 3.4
+    },
+    {
+      "id": "a971fd25-6f4c-40c0-949a-c3b90a3af1ef",
+      "name": "Split URLs",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [340, 420],
+      "parameters": {
+        "fieldToSplitOut": "data.image_urls",
+        "include": {
+          "includes": [
+            {
+              "key": "data.item_id",
+              "newKey": "item_id"
+            },
+            {
+              "key": "data.location",
+              "newKey": "location"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "d459e14a-46cf-4d55-9de9-03bc11e34447",
+      "name": "Fetch Images",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [500, 420],
+      "parameters": {
+        "url": "={{ $json }}",
+        "method": "GET",
+        "authentication": "none",
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "proxy": {
+            "proxy": {
+              "enabled": false
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 5
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "typeVersion": 3
+    },
+    {
+      "id": "7c4c27bb-6698-4975-adad-72e5e225605b",
+      "name": "Convert to Base64",
+      "type": "n8n-nodes-base.code",
+      "position": [660, 420],
+      "parameters": {
+        "modeType": "javascript",
+        "jsCode": "// Get binary data and convert to base64\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // If we have binary data (from HTTP request)\n  if (item.binary && item.binary.data) {\n    // Create a new item with the base64 data\n    results.push({\n      item_id: item.json.item_id,\n      location: item.json.location,\n      is_primary: item.json.is_primary || false,\n      binary_data: item.binary.data.toString('base64')\n    });\n  }\n  // If we already have a base64 string\n  else if (item.json.binary_data) {\n    results.push(item.json);\n  }\n}\n\nreturn results;"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "fb62aa45-d6c5-47b3-bd3c-91a43e9e2598",
+      "name": "Group and Format Images",
+      "type": "n8n-nodes-base.code",
+      "position": [820, 420],
+      "parameters": {
+        "modeType": "javascript",
+        "jsCode": "// This node replaces the groupBy node with standard functionality\n// It groups images by item_id and formats the data for processing\n\nconst items = $input.all();\n\n// Create a map to group by item_id\nconst itemGroups = {};\n\n// Group items by item_id\nfor (const item of items) {\n  const itemId = item.json.item_id;\n  \n  if (!itemGroups[itemId]) {\n    itemGroups[itemId] = {\n      item_id: itemId,\n      location: item.json.location,\n      binary_data: [],\n      is_primary: []\n    };\n  }\n  \n  itemGroups[itemId].binary_data.push(item.json.binary_data);\n  itemGroups[itemId].is_primary.push(item.json.is_primary || false);\n}\n\n// Convert groups to final format\nconst results = [];\n\nfor (const itemId in itemGroups) {\n  const group = itemGroups[itemId];\n  const imagesList = [];\n  \n  // Create image objects\n  for (let i = 0; i < group.binary_data.length; i++) {\n    imagesList.push({\n      binary_data: group.binary_data[i],\n      is_primary: i === 0 // First image is primary by default\n    });\n  }\n  \n  // Create the final item object\n  results.push({\n    item_id: group.item_id,\n    location: group.location,\n    images: imagesList,\n    timestamp: new Date().toISOString()\n  });\n}\n\nreturn results;"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "b8644f6d-691f-49bc-b0fe-33a68c59638d",
+      "name": "Process Images",
+      "type": "n8n-nodes-base.code",
+      "position": [980, 420],
+      "parameters": {
+        "modeType": "javascript",
+        "jsCode": "// This function handles image processing before AI analysis\n\n// Safely extract input data from different possible sources\nlet inputData;\n\n// Check for webhook data\nif ($input.all()[0].json && $input.all()[0].json.body) {\n  // From webhook\n  inputData = $input.all()[0].json.body.data;\n} else if ($input.all()[0].json && $input.all()[0].json.images) {\n  // Direct input with images field\n  inputData = $input.all()[0].json;\n} else {\n  // Other input format\n  inputData = $input.all()[0].json;\n}\n\n// Handle incoming image data with defaults\nconst itemId = inputData?.item_id || `item_${Date.now()}`;\nconst location = inputData?.location || \"Unknown\";\nconst images = inputData?.images || [];\n\n// Initialize the result\nconst result = {\n  item_id: itemId,\n  location: location,\n  // Include any other metadata sent from the app\n  timestamp: new Date().toISOString(),\n  // Images are in binary/base64 format\n  images: images\n};\n\n// Return as items array for n8n\nreturn [result];"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "ecb266f2-0d2d-4cbe-a641-26735f0bdf18",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [280, 180],
+      "parameters": {
+        "color": 7,
+        "width": 594,
+        "height": 438,
+        "content": "## 1. Direct Image Processing\n\nThe app sends images directly as base64-encoded data in the API request payload, along with item metadata.\n\nKey improvements:\n- No image storage required\n- Reduced latency\n- Simpler workflow\n\n**Recommended app-side preparation:**\n- Resize images to 1024x1024 to reduce bandwidth\n- Compress to reasonable JPEG quality (75-85%)\n- Include metadata like location and item_id"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "a1034923-0905-4cdd-a6bf-21d28aa3dd71",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [680, 180],
+      "parameters": {
+        "color": 7,
+        "width": 774,
+        "height": 589.25,
+        "content": "## 2. AI-Powered Inventory Analysis\n[Learn more about LLM Chains](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.chainllm)\n\nThis workflow processes wardrobe/inventory images using advanced vision models to extract rich metadata:\n- Item identification and description\n- Color detection and material analysis\n- Condition assessment\n- Brand detection and value estimation\n- Automatic tagging suggestions\n\nImages are processed in batches when multiple are available for an item to improve accuracy."
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "af231ee5-adff-4d27-ba5f-8c04ddd4892d",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-140, 0],
+      "parameters": {
+        "width": 386,
+        "height": 610.0104651162792,
+        "content": "## Wardrobe & Inventory Management AI\n\n### This workflow handles intelligent image processing for the multi-location wardrobe inventory app, extracting rich metadata using AI vision models.\n\n### Features:\n- Multi-image analysis for better item recognition\n- Direct image processing without storage\n- Rich metadata extraction including materials, colors, condition\n- Automatic tagging suggestions\n- Location-based organization\n- Brand and value detection\n\n### Implementation Notes:\n- Image resizing recommended on app side\n- Binary data sent directly to API\n- Structured response format for SwiftData"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "e07e1655-2683-4e21-b2b7-e0c0bfb569c0",
+      "name": "Inventory Item Analyzer",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [1140, 420],
+      "parameters": {
+        "text": "Analyze the inventory item image(s) and extract detailed metadata.",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are an expert inventory analyst specialized in identifying and categorizing personal items across multiple locations. Your task is to analyze images of items and extract detailed information including:\n\n- Item identification (what it is)\n- Category (clothing, electronics, furniture, kitchenware, etc.)\n- Detailed description including appearance, style, materials\n- Primary color and secondary colors\n- Material composition\n- Condition assessment (New, Like New, Good, Fair, Poor)\n- Possible location suggestion (based on item type: House A, B, or C)\n- Relevant tags for categorization (up to 8 tags)\n- Estimated value range (if identifiable)\n- Any detected brand names or logos\n- Any text visible in the images\n\nThe user is cataloging items across multiple houses. House A is primarily for everyday items, House B for seasonal/occasional use, and House C for storage/archived items.\n\nProvide detailed, accurate analysis using all available visual information. When multiple images of the same item are provided, use all images to improve accuracy. Focus on factual details visible in the images rather than speculation.\n"
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "messageType": "imageBinary",
+              "value": "={{ $json.images ? $json.images.map(img => img.binary_data) : [] }}"
+            }
+          ]
+        },
+        "promptType": "define",
+        "hasOutputParser": true
+      },
+      "typeVersion": 1.4
+    },
+    {
+      "id": "0a36ba22-90b2-4abf-943b-c1cc8e7317d5",
+      "name": "OpenAI Vision Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [1140, 600],
+      "parameters": {
+        "options": {},
+        "modelName": "gpt-4o"
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "dSxo6ns5wn658r8N",
+          "name": "OpenAI API account"
+        }
+      },
+      "typeVersion": 1.1
+    },
+    {
+      "id": "c46e83e0-785f-44e8-95f3-937486c96e62",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "position": [1340, 420],
+      "parameters": {
+        "modeType": "javascript",
+        "jsCode": "// Combine AI analysis with original item metadata\nconst input = $input.all()[0].json;\nconst itemInfo = {\n  item_id: input.item_id,\n  location: input.location || input.suggested_location,\n  ai_metadata: {\n    name: input.item_name,\n    category: input.item_category,\n    description: input.item_description,\n    primary_color: input.primary_color,\n    secondary_colors: input.secondary_colors || [],\n    material: input.material,\n    condition: input.condition,\n    tags: input.suggested_tags || [],\n    estimated_value: input.estimated_value,\n    brand: input.detected_brand,\n    detected_text: input.detected_text || []\n  }\n};\n\n// Format for SwiftData compatibility and return as array\nreturn [itemInfo];"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "b4cffe34-0bcf-45a1-9c22-97707ec370d8",
+      "name": "Respond with AI Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1540, 420],
+      "parameters": {
+        "options": {}
+      },
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [
+        [
+          {
+            "node": "Sample Test Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sample Test Data": {
+      "main": [
+        [
+          {
+            "node": "Split URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split URLs": {
+      "main": [
+        [
+          {
+            "node": "Fetch Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Images": {
+      "main": [
+        [
+          {
+            "node": "Convert to Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to Base64": {
+      "main": [
+        [
+          {
+            "node": "Group and Format Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group and Format Images": {
+      "main": [
+        [
+          {
+            "node": "Process Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Images": {
+      "main": [
+        [
+          {
+            "node": "Inventory Item Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Vision Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Inventory Item Analyzer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Inventory Item Analyzer",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Trigger": {
+      "main": [
+        [
+          {
+            "node": "Process Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inventory Item Analyzer": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond with AI Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
